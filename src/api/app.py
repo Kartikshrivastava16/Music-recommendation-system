@@ -1,8 +1,12 @@
 """
 Flask API for Music Recommendation System
+
+This module serves as the main Flask application entry point.
+All route logic has been separated into individual blueprint modules
+in the routes/ directory for better modularity and maintainability.
 """
 
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, jsonify, send_file
 from flask_cors import CORS
 import logging
 import sys
@@ -11,15 +15,11 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import (
-    API_HOST, API_PORT, DEBUG, NUM_RECOMMENDATIONS,
-    COLLABORATIVE_WEIGHT, CONTENT_WEIGHT
-)
+from config import API_HOST, API_PORT, DEBUG, COLLABORATIVE_WEIGHT, CONTENT_WEIGHT
 from data.loader import DataLoader
 from data.processor import DataProcessor
 from models.hybrid_recommender import HybridRecommender
 from models.feedback_manager import FeedbackManager
-from utils.validators import validate_user_id, validate_song_id, validate_rating
 
 # Initialize Flask app
 app = Flask(__name__, static_folder=str(Path(__file__).parent))
@@ -62,12 +62,29 @@ def initialize_models():
         # Initialize feedback manager
         feedback_manager = FeedbackManager(history_file="data/listening_history.csv")
         
+        # Inject models into route modules
+        inject_models_into_routes()
+        
         logger.info("Models initialized successfully")
         return True
     
     except Exception as e:
         logger.error(f"Error initializing models: {str(e)}")
         return False
+
+def inject_models_into_routes():
+    """Inject initialized models into route blueprints"""
+    import routes.recommendations as rec_module
+    rec_module.recommender = recommender
+    
+    import routes.feedback as fb_module
+    fb_module.feedback_manager = feedback_manager
+    
+    import routes.similar as sim_module
+    sim_module.recommender = recommender
+    
+    import routes.stats as stats_module
+    stats_module.recommender = recommender
 
 @app.route('/', methods=['GET'])
 def home():
@@ -83,7 +100,7 @@ def home():
             'status': 'active',
             'message': 'Web interface not available, but API is working',
             'endpoints': {
-                'health': 'GET /health - Health check',
+                'health': 'GET /api/health - Health check',
                 'recommendations': 'GET /api/recommendations/<user_id>?n=10 - Get hybrid recommendations',
                 'collaborative': 'GET /api/recommendations/collaborative/<user_id> - Collaborative filtering',
                 'content_based': 'GET /api/recommendations/content-based/<user_id> - Content-based filtering',
@@ -93,232 +110,6 @@ def home():
                 'stats': 'GET /api/stats - System statistics'
             }
         }), 200
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'service': 'Music Recommendation System API'
-    }), 200
-
-@app.route('/api/recommendations/<int:user_id>', methods=['GET'])
-def get_recommendations(user_id):
-    """
-    Get recommendations for a user
-    
-    Query parameters:
-    - n: number of recommendations (default: 10)
-    - min_score: minimum confidence score (default: 0.0)
-    
-    Returns:
-        JSON array of recommendations with song_id and score
-    """
-    try:
-        # Validate user
-        if not validate_user_id(user_id):
-            return jsonify({'error': 'Invalid user ID'}), 400
-        
-        # Get parameters
-        n_recommendations = request.args.get('n', NUM_RECOMMENDATIONS, type=int)
-        min_score = request.args.get('min_score', 0.0, type=float)
-        
-        if n_recommendations < 1 or n_recommendations > 100:
-            n_recommendations = NUM_RECOMMENDATIONS
-        
-        # Get recommendations
-        recommendations = recommender.get_recommendations(
-            user_id=user_id,
-            num_recommendations=n_recommendations
-        )
-        
-        # Filter by minimum score
-        filtered_recommendations = [
-            {'song_id': song_id, 'score': float(score)}
-            for song_id, score in recommendations
-            if score >= min_score
-        ]
-        
-        return jsonify({
-            'user_id': user_id,
-            'recommendations': filtered_recommendations,
-            'count': len(filtered_recommendations)
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Error getting recommendations: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/recommendations/collaborative/<int:user_id>', methods=['GET'])
-def get_collaborative_recommendations(user_id):
-    """Get recommendations using only collaborative filtering"""
-    try:
-        if not validate_user_id(user_id):
-            return jsonify({'error': 'Invalid user ID'}), 400
-        
-        n_recommendations = request.args.get('n', NUM_RECOMMENDATIONS, type=int)
-        
-        recommendations = recommender.get_collaborative_recommendations(
-            user_id=user_id,
-            num_recommendations=n_recommendations
-        )
-        
-        return jsonify({
-            'user_id': user_id,
-            'method': 'collaborative_filtering',
-            'recommendations': [
-                {'song_id': song_id, 'score': float(score)}
-                for song_id, score in recommendations
-            ]
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Error in collaborative recommendations: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/recommendations/content-based/<int:user_id>', methods=['GET'])
-def get_content_based_recommendations(user_id):
-    """Get recommendations using only content-based filtering"""
-    try:
-        if not validate_user_id(user_id):
-            return jsonify({'error': 'Invalid user ID'}), 400
-        
-        n_recommendations = request.args.get('n', NUM_RECOMMENDATIONS, type=int)
-        
-        recommendations = recommender.get_content_based_recommendations(
-            user_id=user_id,
-            num_recommendations=n_recommendations
-        )
-        
-        return jsonify({
-            'user_id': user_id,
-            'method': 'content_based_filtering',
-            'recommendations': [
-                {'song_id': song_id, 'score': float(score)}
-                for song_id, score in recommendations
-            ]
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Error in content-based recommendations: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/feedback', methods=['POST'])
-def record_feedback():
-    """
-    Record user feedback on a song
-    
-    Request body:
-    {
-        "user_id": int,
-        "song_id": int,
-        "rating": float (1-5),
-        "timestamp": str (optional, ISO format)
-    }
-    """
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return jsonify({'error': 'No JSON data provided'}), 400
-        
-        user_id = data.get('user_id')
-        song_id = data.get('song_id')
-        rating = data.get('rating')
-        timestamp = data.get('timestamp')
-        
-        # Validate inputs
-        if not validate_user_id(user_id):
-            return jsonify({'error': 'Invalid user ID'}), 400
-        
-        if not validate_song_id(song_id):
-            return jsonify({'error': 'Invalid song ID'}), 400
-        
-        if not validate_rating(rating):
-            return jsonify({'error': 'Rating must be between 1 and 5'}), 400
-        
-        # Record feedback
-        success = feedback_manager.record_feedback(user_id, song_id, rating, timestamp)
-        
-        if success:
-            return jsonify({
-                'status': 'success',
-                'message': 'Feedback recorded',
-                'user_id': user_id,
-                'song_id': song_id,
-                'rating': rating
-            }), 201
-        else:
-            return jsonify({'error': 'Failed to record feedback'}), 500
-    
-    except Exception as e:
-        logger.error(f"Error recording feedback: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/similar-users/<int:user_id>', methods=['GET'])
-def get_similar_users(user_id):
-    """Get users similar to the given user"""
-    try:
-        if not validate_user_id(user_id):
-            return jsonify({'error': 'Invalid user ID'}), 400
-        
-        n_users = request.args.get('n', 5, type=int)
-        similar_users = recommender.get_similar_users(user_id, n_users)
-        
-        return jsonify({
-            'user_id': user_id,
-            'similar_users': [
-                {'user_id': uid, 'similarity': float(sim)}
-                for uid, sim in similar_users
-            ]
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Error getting similar users: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/similar-songs/<int:song_id>', methods=['GET'])
-def get_similar_songs(song_id):
-    """Get songs similar to the given song"""
-    try:
-        if not validate_song_id(song_id):
-            return jsonify({'error': 'Invalid song ID'}), 400
-        
-        n_songs = request.args.get('n', 5, type=int)
-        similar_songs = recommender.get_similar_songs(song_id, n_songs)
-        
-        return jsonify({
-            'song_id': song_id,
-            'similar_songs': [
-                {'song_id': sid, 'similarity': float(sim)}
-                for sid, sim in similar_songs
-            ]
-        }), 200
-    
-    except Exception as e:
-        logger.error(f"Error getting similar songs: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    """Get system statistics"""
-    try:
-        total_interactions = 0
-        if recommender.user_item_matrix is not None:
-            total_interactions = int(recommender.user_item_matrix.values.astype(bool).sum().sum())
-        
-        stats = {
-            'total_songs': int(len(recommender.song_features)) if recommender.song_features is not None else 0,
-            'total_users': int(len(recommender.user_item_matrix)) if recommender.user_item_matrix is not None else 0,
-            'total_interactions': total_interactions,
-            'collaborative_weight': float(COLLABORATIVE_WEIGHT),
-            'content_weight': float(CONTENT_WEIGHT)
-        }
-        return jsonify(stats), 200
-    
-    except Exception as e:
-        logger.error(f"Error getting stats: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
 
 @app.errorhandler(404)
 def not_found(error):
@@ -330,6 +121,17 @@ def internal_error(error):
     """Handle 500 errors"""
     return jsonify({'error': 'Internal server error'}), 500
 
+# Register route blueprints
+from routes.recommendations import recommendations_bp
+from routes.feedback import feedback_bp
+from routes.similar import similar_bp
+from routes.stats import stats_bp
+
+app.register_blueprint(recommendations_bp)
+app.register_blueprint(feedback_bp)
+app.register_blueprint(similar_bp)
+app.register_blueprint(stats_bp)
+
 if __name__ == '__main__':
     # Initialize models on startup
     if initialize_models():
@@ -337,3 +139,4 @@ if __name__ == '__main__':
     else:
         logger.error("Failed to initialize models. Exiting.")
         sys.exit(1)
+
