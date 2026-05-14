@@ -2,7 +2,7 @@
 Flask API for Music Recommendation System
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import logging
 import sys
@@ -22,7 +22,7 @@ from models.feedback_manager import FeedbackManager
 from utils.validators import validate_user_id, validate_song_id, validate_rating
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__, static_folder=str(Path(__file__).parent))
 CORS(app)
 
 # Configure logging
@@ -71,23 +71,28 @@ def initialize_models():
 
 @app.route('/', methods=['GET'])
 def home():
-    """Root endpoint - API documentation"""
-    return jsonify({
-        'service': 'Music Recommendation System API',
-        'version': '1.0.0',
-        'status': 'active',
-        'endpoints': {
-            'health': 'GET /health - Health check',
-            'recommendations': 'GET /api/recommendations/<user_id>?n=10 - Get hybrid recommendations',
-            'collaborative': 'GET /api/recommendations/collaborative/<user_id> - Collaborative filtering',
-            'content_based': 'GET /api/recommendations/content-based/<user_id> - Content-based filtering',
-            'feedback': 'POST /api/feedback - Record user feedback',
-            'similar_users': 'GET /api/similar-users/<user_id>?n=5 - Find similar users',
-            'similar_songs': 'GET /api/similar-songs/<song_id>?n=5 - Find similar songs',
-            'stats': 'GET /api/stats - System statistics'
-        },
-        'documentation': 'See https://github.com/yourusername/music-recommendation-system for full docs'
-    }), 200
+    """Root endpoint - Serve the web interface"""
+    try:
+        html_file = Path(__file__).parent / 'index.html'
+        return send_file(html_file)
+    except Exception as e:
+        logger.error(f"Error serving home page: {str(e)}")
+        return jsonify({
+            'service': 'Music Recommendation System API',
+            'version': '1.0.0',
+            'status': 'active',
+            'message': 'Web interface not available, but API is working',
+            'endpoints': {
+                'health': 'GET /health - Health check',
+                'recommendations': 'GET /api/recommendations/<user_id>?n=10 - Get hybrid recommendations',
+                'collaborative': 'GET /api/recommendations/collaborative/<user_id> - Collaborative filtering',
+                'content_based': 'GET /api/recommendations/content-based/<user_id> - Content-based filtering',
+                'feedback': 'POST /api/feedback - Record user feedback',
+                'similar_users': 'GET /api/similar-users/<user_id>?n=5 - Find similar users',
+                'similar_songs': 'GET /api/similar-songs/<song_id>?n=5 - Find similar songs',
+                'stats': 'GET /api/stats - System statistics'
+            }
+        }), 200
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -298,12 +303,16 @@ def get_similar_songs(song_id):
 def get_stats():
     """Get system statistics"""
     try:
+        total_interactions = 0
+        if recommender.user_item_matrix is not None:
+            total_interactions = int(recommender.user_item_matrix.values.astype(bool).sum().sum())
+        
         stats = {
-            'total_songs': len(recommender.song_features) if recommender.song_features is not None else 0,
-            'total_users': len(recommender.user_item_matrix) if recommender.user_item_matrix is not None else 0,
-            'total_interactions': recommender.user_item_matrix.values.astype(bool).sum().sum() if recommender.user_item_matrix is not None else 0,
-            'collaborative_weight': COLLABORATIVE_WEIGHT,
-            'content_weight': CONTENT_WEIGHT
+            'total_songs': int(len(recommender.song_features)) if recommender.song_features is not None else 0,
+            'total_users': int(len(recommender.user_item_matrix)) if recommender.user_item_matrix is not None else 0,
+            'total_interactions': total_interactions,
+            'collaborative_weight': float(COLLABORATIVE_WEIGHT),
+            'content_weight': float(CONTENT_WEIGHT)
         }
         return jsonify(stats), 200
     
