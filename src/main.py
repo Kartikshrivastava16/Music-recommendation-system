@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from config import NUM_RECOMMENDATIONS
 from utils.logger import get_logger
-from data import DataLoader
+from data.loader import DataLoader
 from data.processor import DataProcessor
 from models.hybrid_recommender import HybridRecommender
 
@@ -72,7 +72,6 @@ def main():
             
             recommendations = recommender.get_recommendations(
                 sample_user,
-                user_item_matrix,
                 num_recommendations=NUM_RECOMMENDATIONS
             )
             

@@ -22,12 +22,17 @@ class ContentBasedFiltering:
         Args:
             song_features: DataFrame with song features and feature columns
         """
-        # Extract feature columns (all except song_id)
-        feature_cols = [col for col in song_features.columns if col != 'song_id']
+        # Extract only numeric feature columns (exclude song_id and text columns)
+        numeric_cols = song_features.select_dtypes(include=[np.number]).columns.tolist()
+        
+        # Remove song_id if it's in numeric columns
+        if 'song_id' in numeric_cols:
+            numeric_cols.remove('song_id')
+        
         self.song_features = song_features
         
         # Compute similarity between songs based on audio features
-        features_matrix = song_features[feature_cols].values
+        features_matrix = song_features[numeric_cols].fillna(0).values
         self.song_feature_similarity = cosine_similarity(features_matrix)
         self.song_feature_similarity = pd.DataFrame(
             self.song_feature_similarity,
