@@ -36,19 +36,37 @@ def main():
         logger.info("Starting Music Recommendation System...")
 
         # ── Verify data directory ─────────────────────────────────────
-        data_dir = Path("data")
-        if not data_dir.exists():
-            logger.warning("Data directory not found. Creating it now...")
-            data_dir.mkdir(exist_ok=True)
-            logger.info(
-                "Please add songs.csv, users.csv, and listening_history.csv "
-                "to the data/ folder, then re-run."
-            )
-            return
+        # Search for a `data/` directory in multiple likely locations so the
+        # CLI works whether run from the repo root or from `src/`.
+        candidates = [
+            Path.cwd(),
+            Path(__file__).resolve().parent,
+            Path(__file__).resolve().parent.parent,
+        ]
+
+        data_dir = None
+        for base in candidates:
+            candidate = (base / "data")
+            if candidate.exists():
+                data_dir = candidate.resolve()
+                logger.info(f"Using data directory: {data_dir}")
+                break
+
+        if data_dir is None:
+            # No existing data dir found; create a local one relative to cwd
+            data_dir = Path("data")
+            if not data_dir.exists():
+                logger.warning("Data directory not found. Creating it now...")
+                data_dir.mkdir(exist_ok=True)
+                logger.info(
+                    "Please add songs.csv, users.csv, and listening_history.csv "
+                    "to the data/ folder, then re-run."
+                )
+                return
 
         # ── Load raw data ─────────────────────────────────────────────
         logger.info("Loading data...")
-        data_loader = DataLoader(data_dir="data")
+        data_loader = DataLoader(data_dir=str(data_dir.resolve()))
 
         try:
             songs, users, history = data_loader.load_all()
@@ -107,7 +125,7 @@ def main():
             logger.info("Auto-retrain complete — model re-cached")
 
         feedback_mgr = FeedbackManager(
-            history_file="data/listening_history.csv",
+            history_file=str((data_dir / "listening_history.csv").resolve()),
             retrain_callback=_retrain,
             retrain_threshold=RETRAIN_THRESHOLD,
         )
