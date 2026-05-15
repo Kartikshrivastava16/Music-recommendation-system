@@ -22,7 +22,7 @@ from models.hybrid_recommender import HybridRecommender
 from models.feedback_manager import FeedbackManager
 
 # Initialize Flask app
-app = Flask(__name__, static_folder=str(Path(__file__).parent))
+app = Flask(__name__, static_folder=str(Path(__file__).parent / 'static'))
 CORS(app)
 
 # Configure logging
