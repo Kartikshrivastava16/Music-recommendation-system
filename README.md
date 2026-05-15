@@ -1,167 +1,188 @@
 # Music Recommendation System
 
-An intelligent ML-based music recommendation system that suggests songs based on user preferences, listening history, and audio features. The system uses collaborative filtering and content-based filtering techniques to discover music that aligns with user tastes.
+A production-ready machine-learning system that suggests songs based on user preferences,
+listening history, and audio features — using collaborative filtering, content-based filtering,
+and a diversity-aware hybrid approach that continuously learns from user feedback.
+
+---
 
 ## Features
 
-- **Collaborative Filtering**: Finds similar users and recommends songs they liked
-- **Content-Based Filtering**: Analyzes audio features (tempo, genre, mood) to match with user preferences
-- **Audio Feature Analysis**: Extracts and analyzes song characteristics
-- **User Learning**: Continuously learns from user interactions to improve recommendations
-- **Listening History Tracking**: Maintains user listening patterns and preferences
-- **Real-time Recommendations**: Generates personalized recommendations on demand
+- **Collaborative Filtering** — user-user cosine similarity to find neighbours and recommend songs they loved
+- **Content-Based Filtering** — audio feature cosine similarity (tempo, energy, danceability, valence, acousticness, instrumentalness)
+- **Hybrid Recommender** — weighted combination (60 % collaborative / 40 % content) with configurable weights
+- **MMR Diversity Re-ranking** — Maximal Marginal Relevance keeps recommendation lists varied rather than clustering around one style
+- **Serendipity Boost** — bell-curve novelty bonus surfaces pleasant surprises without straying too far from taste
+- **Auto-Retraining** — `FeedbackManager` automatically refits the model after every N new ratings (default 10)
+- **Model & Feature Caching** — trained model and audio features are persisted to disk so restarts are instant
+- **REST API** — Flask with blueprints, CORS, and a browser UI
+- **Full Test Suite** — 50+ unit tests covering models, data pipeline, and API endpoints
+
+---
 
 ## Project Structure
 
 ```
 Music Recommendation System/
 ├── src/
-│   ├── __init__.py
-│   ├── main.py                      # Application entry point
-│   ├── config.py                    # Configuration settings
+│   ├── main.py                          # CLI entry point
+│   ├── config.py                        # All configuration (reads .env)
+│   ├── api/
+│   │   ├── app.py                       # Flask app + model initialisation
+│   │   ├── index.html                   # Browser UI
+│   │   ├── static/css/styles.css
+│   │   ├── static/js/app.js
+│   │   └── routes/
+│   │       ├── recommendations.py       # GET /api/recommendations/<user_id>
+│   │       ├── feedback.py              # POST /api/feedback
+│   │       ├── similar.py               # GET /api/similar-users|songs/<id>
+│   │       └── stats.py                 # GET /api/stats  POST /api/retrain  PATCH /api/settings
 │   ├── models/
-│   │   ├── __init__.py
 │   │   ├── collaborative_filtering.py
 │   │   ├── content_based_filtering.py
-│   │   └── hybrid_recommender.py
+│   │   ├── hybrid_recommender.py        # MMR + serendipity
+│   │   └── feedback_manager.py          # Auto-retrain
 │   ├── data/
-│   │   ├── __init__.py
-│   │   ├── loader.py               # Data loading utilities
-│   │   └── processor.py            # Data processing and normalization
+│   │   ├── loader.py
+│   │   └── processor.py
 │   ├── features/
-│   │   ├── __init__.py
-│   │   ├── audio_features.py       # Audio feature extraction
-│   │   └── feature_engineer.py     # Feature engineering
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── logger.py               # Logging utilities
-│   │   └── validators.py           # Input validation
-│   └── api/
-│       ├── __init__.py
-│       ├── app.py                  # Flask/FastAPI application
-│       └── routes.py               # API endpoints
+│   │   ├── audio_features.py            # librosa extraction + CSV mode
+│   │   └── feature_engineer.py          # Derived features (popularity, avg rating)
+│   └── utils/
+│       ├── logger.py
+│       └── validators.py
+├── models/
+│   └── model_saver.py                   # save_model / load_model (pickle)
+├── features/
+│   └── feature_cache.py                 # save_features / load_features (pickle)
 ├── data/
-│   ├── songs.csv                   # Song data (placeholder)
-│   ├── users.csv                   # User data (placeholder)
-│   └── listening_history.csv       # Listening history (placeholder)
+│   ├── songs.csv                        # 55 songs with audio features
+│   ├── users.csv                        # 25 users
+│   └── listening_history.csv            # 110+ ratings
+├── logs/
+│   └── app.log                          # Runtime log file
 ├── tests/
-│   ├── __init__.py
 │   ├── test_models.py
-│   ├── test_features.py
+│   ├── test_data.py
 │   └── test_api.py
-├── requirements.txt                 # Python dependencies
-├── setup.py                         # Package setup
-├── .env.example                     # Environment variables template
-├── .gitignore                       # Git ignore file
-└── Makefile                         # Common commands
+├── requirements.txt
+├── Makefile
+└── .env                                 # Environment overrides
 ```
 
-## Installation
+---
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd "Music Recommendation System"
-```
+## Quick Start
 
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
+### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
-
-### Running the Application
-
+### 2. Run the CLI
 ```bash
-python src/main.py
+cd src
+python main.py
 ```
 
-### Starting the API Server
-
+### 3. Start the API server
 ```bash
-python src/api/app.py
+cd src
+python -m api.app
+# Open http://localhost:5000 in your browser
 ```
 
-### Running Tests
-
+### 4. Test API endpoints
 ```bash
-pytest tests/
+# Health check
+curl http://localhost:5000/api/health
+
+# Hybrid recommendations (with diversity + serendipity)
+curl "http://localhost:5000/api/recommendations/1?n=10&diversity=0.3&serendipity=0.15"
+
+# Collaborative-only
+curl "http://localhost:5000/api/recommendations/collaborative/1?n=5"
+
+# Record feedback (triggers auto-retrain after threshold)
+curl -X POST http://localhost:5000/api/feedback \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1, "song_id": 5, "rating": 4.5}'
+
+# System stats (shows diversity settings + retrain status)
+curl http://localhost:5000/api/stats
+
+# Manual retrain
+curl -X POST http://localhost:5000/api/retrain
+
+# Update settings at runtime
+curl -X PATCH http://localhost:5000/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{"diversity_lambda": 0.5, "serendipity_boost": 0.2, "retrain_threshold": 20}'
 ```
 
-## API Endpoints
+### 5. Run tests
+```bash
+pytest tests/ -v
+# With coverage
+pytest tests/ --cov=src --cov-report=html
+```
 
-- `GET /api/recommendations/<user_id>` - Get personalized recommendations for a user
-- `POST /api/feedback` - Submit user feedback on recommendations
-- `GET /api/songs/<song_id>/features` - Get audio features of a song
-- `GET /api/users/<user_id>/history` - Get user's listening history
-- `POST /api/train` - Train the recommendation model
-
-## Technologies Used
-
-- **Python 3.9+**: Core programming language
-- **scikit-learn**: Machine learning algorithms
-- **pandas**: Data manipulation and analysis
-- **numpy**: Numerical computations
-- **Flask/FastAPI**: Web framework for API
-- **librosa**: Audio feature extraction
-- **sqlite3**: Database for user data
+---
 
 ## Configuration
 
-Copy `.env.example` to `.env` and update with your settings:
+All settings are read from `.env` (or environment variables):
+
+| Variable | Default | Description |
+|---|---|---|
+| `COLLABORATIVE_WEIGHT` | `0.6` | Weight for collaborative filtering |
+| `CONTENT_WEIGHT` | `0.4` | Weight for content-based filtering |
+| `DIVERSITY_LAMBDA` | `0.3` | MMR diversity (0 = relevance, 1 = variety) |
+| `SERENDIPITY_BOOST` | `0.15` | Novelty bonus for unexpected discoveries |
+| `RETRAIN_THRESHOLD` | `10` | New ratings before auto-retrain fires |
+| `NUM_RECOMMENDATIONS` | `10` | Default result count |
+| `API_HOST` | `0.0.0.0` | Flask host |
+| `API_PORT` | `5000` | Flask port |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+
+---
+
+## How It Works
 
 ```
-DATABASE_URL=sqlite:///music_recommendations.db
-MODEL_PATH=./models/trained_model.pkl
-LOG_LEVEL=INFO
+User Request
+    │
+    ▼
+Collaborative Filtering (60%)     Content-Based Filtering (40%)
+Find similar users → their songs  Find audio-similar songs to user's history
+    │                                      │
+    └──────── Weighted combination ────────┘
+                      │
+              Serendipity Boost
+        (reward mildly novel songs)
+                      │
+              MMR Re-ranking
+        (pick diverse final list)
+                      │
+              Top N Recommendations
+
+User Feedback → FeedbackManager → auto-retrain every N ratings
+                                → save_model() caches to disk
 ```
 
-## Development
+---
 
-### Code Style
+## API Endpoints
 
-Follow PEP 8 guidelines. Use `black` for code formatting and `flake8` for linting:
-
-```bash
-black src/
-flake8 src/
-```
-
-### Contributing
-
-1. Create a feature branch
-2. Commit changes
-3. Push to the branch
-4. Create a Pull Request
-
-## Performance Optimization
-
-- Caching recommendations for popular users
-- Batch processing of recommendations
-- Model serialization for quick loading
-- Efficient similarity computations using vectorized operations
-
-## Future Enhancements
-
-- [ ] Deep learning models (Neural Collaborative Filtering)
-- [ ] Real-time streaming recommendations
-- [ ] Genre classification using neural networks
-- [ ] Mood detection from audio
-- [ ] Social recommendations
-- [ ] A/B testing framework
-- [ ] Advanced feature engineering
-
-## License
-
-MIT License
-
-## Contact
-
-For questions or issues, please create an issue in the repository.
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/health` | Health check |
+| GET | `/api/recommendations/<user_id>` | Hybrid recommendations (`?n`, `?diversity`, `?serendipity`) |
+| GET | `/api/recommendations/collaborative/<user_id>` | Collaborative only |
+| GET | `/api/recommendations/content-based/<user_id>` | Content-based only |
+| POST | `/api/feedback` | Record a rating |
+| GET | `/api/similar-users/<user_id>` | Similar users |
+| GET | `/api/similar-songs/<song_id>` | Similar songs |
+| GET | `/api/stats` | System statistics |
+| POST | `/api/retrain` | Manual model retrain |
+| PATCH | `/api/settings` | Update diversity/serendipity/threshold at runtime |

@@ -17,40 +17,44 @@ recommendations_bp = Blueprint('recommendations', __name__, url_prefix='/api/rec
 # Logger
 logger = logging.getLogger(__name__)
 
-# Global reference - will be set by app.py
+# Global references - will be set by app.py
 recommender = None
+feedback_manager = None
 
 @recommendations_bp.route('/<int:user_id>', methods=['GET'])
 def get_recommendations(user_id):
     """
-    Get hybrid recommendations for a user
+    Get hybrid recommendations for a user.
     
     Query parameters:
-    - n: number of recommendations (default: 10)
-    - min_score: minimum confidence score (default: 0.0)
+    - n            : number of recommendations (default: 10)
+    - min_score    : minimum confidence score (default: 0.0)
+    - diversity    : MMR lambda override 0-1 (optional)
+    - serendipity  : serendipity boost override 0-1 (optional)
     
     Returns:
         JSON array of recommendations with song_id and score
     """
     try:
-        # Validate user
         if not validate_user_id(user_id):
             return jsonify({'error': 'Invalid user ID'}), 400
         
-        # Get parameters
         n_recommendations = request.args.get('n', NUM_RECOMMENDATIONS, type=int)
-        min_score = request.args.get('min_score', 0.0, type=float)
+        min_score         = request.args.get('min_score', 0.0, type=float)
+        diversity_lambda  = request.args.get('diversity', None, type=float)
+        serendipity_boost = request.args.get('serendipity', None, type=float)
         
         if n_recommendations < 1 or n_recommendations > 100:
             n_recommendations = NUM_RECOMMENDATIONS
         
-        # Get recommendations
-        recommendations = recommender.get_recommendations(
-            user_id=user_id,
-            num_recommendations=n_recommendations
-        )
+        kwargs = dict(user_id=user_id, num_recommendations=n_recommendations)
+        if diversity_lambda is not None:
+            kwargs['diversity_lambda'] = max(0.0, min(1.0, diversity_lambda))
+        if serendipity_boost is not None:
+            kwargs['serendipity_boost'] = max(0.0, min(1.0, serendipity_boost))
         
-        # Filter by minimum score
+        recommendations = recommender.get_recommendations(**kwargs)
+        
         filtered_recommendations = [
             {'song_id': song_id, 'score': float(score)}
             for song_id, score in recommendations
@@ -60,7 +64,9 @@ def get_recommendations(user_id):
         return jsonify({
             'user_id': user_id,
             'recommendations': filtered_recommendations,
-            'count': len(filtered_recommendations)
+            'count': len(filtered_recommendations),
+            'diversity_lambda': kwargs.get('diversity_lambda', recommender.diversity_lambda),
+            'serendipity_boost': kwargs.get('serendipity_boost', recommender.serendipity_boost)
         }), 200
     
     except Exception as e:

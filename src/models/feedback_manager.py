@@ -1,27 +1,50 @@
 """
-Feedback manager for recording and managing user interactions
+Feedback manager for recording and managing user interactions.
+Supports auto-retraining of the hybrid recommender after new feedback
+once a configurable threshold of new ratings has accumulated.
 """
 
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Callable
 import logging
 
 logger = logging.getLogger(__name__)
 
 class FeedbackManager:
-    """Manage user feedback and learning from interactions"""
+    """Manage user feedback and learning from interactions.
     
-    def __init__(self, history_file: str = "data/listening_history.csv"):
+    Auto-retraining
+    ---------------
+    Pass a ``retrain_callback`` (a zero-argument callable that re-fits the
+    recommender) and set ``retrain_threshold`` to the number of new ratings
+    that should trigger a retrain.  Every time ``record_feedback`` pushes
+    ``new_feedback_count`` past a multiple of ``retrain_threshold`` the
+    callback is invoked automatically.
+    """
+    
+    def __init__(self,
+                 history_file: str = "data/listening_history.csv",
+                 retrain_callback: Optional[Callable] = None,
+                 retrain_threshold: int = 10):
         """
-        Initialize feedback manager
+        Initialize feedback manager.
         
         Args:
-            history_file: Path to listening history CSV file
+            history_file: Path to listening history CSV file.
+            retrain_callback: Zero-argument callable that re-fits the
+                recommender model.  Called automatically whenever
+                ``new_feedback_count`` reaches a new multiple of
+                ``retrain_threshold``.  Pass ``None`` to disable auto-retrain.
+            retrain_threshold: Number of new ratings between automatic
+                retrains (default 10).
         """
         self.history_file = Path(history_file)
         self.feedback_buffer = []
+        self.retrain_callback = retrain_callback
+        self.retrain_threshold = retrain_threshold
+        self.new_feedback_count = 0  # ratings received since last retrain
     
     def record_feedback(self, user_id: int, song_id: int, rating: float, 
                        timestamp: Optional[str] = None) -> bool:
@@ -71,11 +94,49 @@ class FeedbackManager:
             
             df.to_csv(self.history_file, index=False)
             logger.info(f"Feedback recorded: user {user_id}, song {song_id}, rating {rating}")
+            
+            # --- auto-retrain trigger ---
+            self.new_feedback_count += 1
+            if (
+                self.retrain_callback is not None
+                and self.retrain_threshold > 0
+                and self.new_feedback_count % self.retrain_threshold == 0
+            ):
+                logger.info(
+                    f"Auto-retrain triggered after {self.new_feedback_count} "
+                    f"new ratings (threshold={self.retrain_threshold})"
+                )
+                try:
+                    self.retrain_callback()
+                    logger.info("Auto-retrain completed successfully")
+                except Exception as retrain_err:
+                    logger.error(f"Auto-retrain failed: {retrain_err}")
+            
             return True
         
         except Exception as e:
             logger.error(f"Error recording feedback: {str(e)}")
             return False
+    
+    def set_retrain_callback(self, callback: Callable, threshold: int = None) -> None:
+        """
+        Attach or replace the auto-retrain callback at runtime.
+        
+        Args:
+            callback: Zero-argument callable that re-fits the recommender.
+            threshold: New threshold value; if None, keeps the existing one.
+        """
+        self.retrain_callback = callback
+        if threshold is not None:
+            self.retrain_threshold = threshold
+        logger.info(
+            f"Retrain callback set (threshold={self.retrain_threshold})"
+        )
+    
+    def reset_feedback_count(self) -> None:
+        """Reset the new-feedback counter (e.g. after a manual retrain)."""
+        self.new_feedback_count = 0
+        logger.info("New-feedback counter reset")
     
     def get_recent_feedback(self, limit: int = 100) -> list:
         """

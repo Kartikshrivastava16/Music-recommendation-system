@@ -3,111 +3,342 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Recommendation System</title>
+    <title>MuseAI — Music Recommendation System</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎵 Music Recommendation System</h1>
-            <p class="subtitle">Discover music tailored to your taste</p>
-        </header>
 
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('recommendations')">Recommendations</button>
-            <button class="tab-btn" onclick="switchTab('similar')">Similar</button>
-            <button class="tab-btn" onclick="switchTab('feedback')">Feedback</button>
-            <button class="tab-btn" onclick="switchTab('stats')">Statistics</button>
+<div class="noise-overlay"></div>
+
+<!-- Floating music notes background -->
+<div class="music-notes-bg" id="musicNotesBg"></div>
+
+<div class="app-wrapper">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-top-bar"></div>
+
+        <div class="sidebar-logo">
+            <div class="logo-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                </svg>
+            </div>
+            <div class="logo-words">
+                <span class="logo-text">MuseAI</span>
+                <span class="logo-sub">ML · Music</span>
+            </div>
         </div>
 
-        <!-- Recommendations Tab -->
-        <div id="recommendations" class="tab-content active">
-            <div class="controls">
-                <div class="control-group">
-                    <label for="userId">User ID:</label>
-                    <input type="number" id="userId" min="1" value="1" placeholder="Enter user ID">
-                </div>
-                <div class="control-group">
-                    <label for="method">Method:</label>
-                    <select id="method">
-                        <option value="hybrid">Hybrid (Recommended)</option>
-                        <option value="collaborative">Collaborative Filtering</option>
-                        <option value="content">Content-Based</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="count">Number of Songs:</label>
-                    <input type="number" id="count" min="1" max="20" value="10">
-                </div>
-                <div class="button-group">
-                    <button class="btn-primary" onclick="getRecommendations()">Get Recommendations</button>
-                    <button class="btn-secondary" onclick="clearResults()">Clear</button>
+        <div class="sidebar-section-label">Navigation</div>
+
+        <nav class="sidebar-nav">
+            <button class="nav-item active" data-tab="recommendations">
+                <div class="nav-icon"><i class="ti ti-sparkles"></i></div>
+                <span>Discover</span>
+                <span class="nav-badge">AI</span>
+            </button>
+            <button class="nav-item" data-tab="similar">
+                <div class="nav-icon"><i class="ti ti-affiliate"></i></div>
+                <span>Find Similar</span>
+            </button>
+            <button class="nav-item" data-tab="feedback">
+                <div class="nav-icon"><i class="ti ti-star"></i></div>
+                <span>Rate Songs</span>
+            </button>
+            <button class="nav-item" data-tab="stats">
+                <div class="nav-icon"><i class="ti ti-chart-bar"></i></div>
+                <span>Analytics</span>
+            </button>
+        </nav>
+
+        <div class="sidebar-spacer"></div>
+
+        <!-- Mini visualizer in sidebar -->
+        <div class="sidebar-visualizer">
+            <div class="vis-bar"></div><div class="vis-bar"></div><div class="vis-bar"></div>
+            <div class="vis-bar"></div><div class="vis-bar"></div><div class="vis-bar"></div>
+            <div class="vis-bar"></div><div class="vis-bar"></div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="system-status-card">
+                <span class="status-dot" id="statusDot"></span>
+                <div class="status-info">
+                    <span class="status-label">System</span>
+                    <span class="status-text" id="statusText">Connecting…</span>
                 </div>
             </div>
+        </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main-content">
+
+        <!-- ── DISCOVER TAB ─────────────────────────────────────── -->
+        <section id="recommendations" class="tab-panel active">
+
+            <!-- Hero -->
+            <div class="hero-banner">
+                <div class="hero-vinyl">
+                    <div class="vinyl-outer">
+                        <div class="vinyl-inner">
+                            <div class="vinyl-hole"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-content">
+                    <div class="hero-chip">
+                        <span class="chip-dot"></span>
+                        ML-Powered Recommendations
+                    </div>
+                    <h1 class="hero-title">Discover Your<br><em>Next Favourite</em> Song</h1>
+                    <p class="hero-desc">Hybrid collaborative + content-based filtering tailored to your listening patterns.</p>
+                    <div class="hero-badges">
+                        <span class="hero-badge">🎵 55 Songs</span>
+                        <span class="hero-badge">👥 25 Users</span>
+                        <span class="hero-badge">⚡ 3 ML Models</span>
+                    </div>
+                </div>
+                <div class="hero-waveform">
+                    <canvas id="waveCanvas" width="180" height="80"></canvas>
+                </div>
+            </div>
+
+            <!-- Mood Filter Bar -->
+            <div class="mood-bar-wrap">
+                <span class="mood-label"><i class="ti ti-mood-smile"></i> Mood Filter</span>
+                <div class="mood-bar">
+                    <button class="mood-pill active" data-mood="all">✨ All</button>
+                    <button class="mood-pill" data-mood="energetic">⚡ Energetic</button>
+                    <button class="mood-pill" data-mood="chill">😌 Chill</button>
+                    <button class="mood-pill" data-mood="happy">😊 Happy</button>
+                    <button class="mood-pill" data-mood="melancholic">🌧 Melancholic</button>
+                    <button class="mood-pill" data-mood="acoustic">🪵 Acoustic</button>
+                    <button class="mood-pill" data-mood="danceable">💃 Danceable</button>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls-card">
+                <div class="controls-card-title">
+                    <i class="ti ti-adjustments-horizontal"></i> Tune Your Recommendations
+                </div>
+                <div class="controls-grid">
+                    <div class="field">
+                        <label><i class="ti ti-user-circle"></i> User ID <span class="field-hint">1–25</span></label>
+                        <input type="number" id="userId" min="1" max="25" value="1" placeholder="e.g. 7">
+                    </div>
+                    <div class="field">
+                        <label><i class="ti ti-cpu"></i> Algorithm</label>
+                        <select id="method">
+                            <option value="hybrid">✦ Hybrid (Recommended)</option>
+                            <option value="collaborative">👥 Collaborative Filtering</option>
+                            <option value="content">🎵 Content-Based</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label><i class="ti ti-music-list"></i> # of Songs</label>
+                        <input type="number" id="count" min="1" max="20" value="8">
+                    </div>
+                </div>
+
+                <div class="sliders-row">
+                    <div class="slider-field">
+                        <div class="slider-label">
+                            <span class="slider-label-left"><i class="ti ti-arrows-shuffle"></i> Diversity</span>
+                            <span class="slider-val" id="diversityVal">0.30</span>
+                        </div>
+                        <div class="range-track-wrap">
+                            <input type="range" id="diversity" min="0" max="1" step="0.05" value="0.3"
+                                   oninput="updateSlider('diversity','diversityVal')">
+                        </div>
+                        <div class="slider-ends"><span>🔁 Familiar</span><span>🎲 Varied</span></div>
+                    </div>
+                    <div class="slider-field">
+                        <div class="slider-label">
+                            <span class="slider-label-left"><i class="ti ti-wand"></i> Serendipity</span>
+                            <span class="slider-val" id="serendipityVal">0.15</span>
+                        </div>
+                        <div class="range-track-wrap">
+                            <input type="range" id="serendipity" min="0" max="1" step="0.05" value="0.15"
+                                   oninput="updateSlider('serendipity','serendipityVal')">
+                        </div>
+                        <div class="slider-ends"><span>🎯 Safe</span><span>🌟 Surprising</span></div>
+                    </div>
+                </div>
+
+                <div class="action-row">
+                    <button class="btn-primary" onclick="getRecommendations()">
+                        <i class="ti ti-sparkles"></i> Get Recommendations
+                    </button>
+                    <button class="btn-ghost" onclick="clearResults()">
+                        <i class="ti ti-x"></i> Clear
+                    </button>
+                    <button class="btn-ghost icon-only" onclick="getRecommendations()" title="Refresh">
+                        <i class="ti ti-refresh"></i>
+                    </button>
+                </div>
+            </div>
+
             <div id="results"></div>
-        </div>
+        </section>
 
-        <!-- Similar Tab -->
-        <div id="similar" class="tab-content">
-            <div class="controls">
-                <div class="control-group">
-                    <label for="similarType">Find Similar:</label>
-                    <select id="similarType">
-                        <option value="users">Users</option>
-                        <option value="songs">Songs</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label for="similarId">ID:</label>
-                    <input type="number" id="similarId" min="1" value="1" placeholder="Enter ID">
-                </div>
-                <div class="control-group">
-                    <label for="similarCount">Count:</label>
-                    <input type="number" id="similarCount" min="1" max="20" value="5">
-                </div>
-                <div class="button-group">
-                    <button class="btn-primary" onclick="getSimilar()">Find Similar</button>
-                    <button class="btn-secondary" onclick="clearResults()">Clear</button>
+        <!-- ── SIMILAR TAB ──────────────────────────────────────── -->
+        <section id="similar" class="tab-panel">
+            <div class="panel-header">
+                <div class="panel-header-left">
+                    <div class="panel-eyebrow"><i class="ti ti-affiliate"></i> Similarity Engine</div>
+                    <h1 class="panel-title">Find <span>Similar</span></h1>
+                    <p class="panel-subtitle">Discover users with matching taste or songs that sound alike</p>
                 </div>
             </div>
-            <div id="results"></div>
-        </div>
 
-        <!-- Feedback Tab -->
-        <div id="feedback" class="tab-content">
-            <div class="feedback-form">
-                <h2>Record Your Feedback</h2>
-                <div class="controls" style="margin-top: 20px;">
-                    <div class="control-group">
-                        <label for="feedbackUserId">User ID:</label>
-                        <input type="number" id="feedbackUserId" min="1" value="1">
+            <div class="controls-card">
+                <div class="controls-card-title"><i class="ti ti-search"></i> Search Parameters</div>
+                <div class="controls-grid">
+                    <div class="field">
+                        <label><i class="ti ti-filter"></i> Find Similar</label>
+                        <select id="similarType">
+                            <option value="users">👥 Users like me</option>
+                            <option value="songs">🎵 Songs like this</option>
+                        </select>
                     </div>
-                    <div class="control-group">
-                        <label for="feedbackSongId">Song ID:</label>
-                        <input type="number" id="feedbackSongId" min="1" value="1">
+                    <div class="field">
+                        <label><i class="ti ti-hash"></i> ID</label>
+                        <input type="number" id="similarId" min="1" value="1">
                     </div>
-                    <div class="control-group">
-                        <label for="feedbackRating">Rating (1-5):</label>
-                        <input type="number" id="feedbackRating" min="1" max="5" step="0.5" value="5">
+                    <div class="field">
+                        <label><i class="ti ti-list-numbers"></i> Results</label>
+                        <input type="number" id="similarCount" min="1" max="20" value="5">
                     </div>
-                    <div class="button-group">
-                        <button class="btn-primary" onclick="recordFeedback()">Submit Feedback</button>
-                        <button class="btn-secondary" onclick="clearFeedback()">Clear</button>
+                </div>
+                <div class="action-row">
+                    <button class="btn-primary" onclick="getSimilar()">
+                        <i class="ti ti-search"></i> Find Similar
+                    </button>
+                    <button class="btn-ghost" onclick="clearSimilarResults()">
+                        <i class="ti ti-x"></i> Clear
+                    </button>
+                </div>
+            </div>
+
+            <div id="similarResults"></div>
+        </section>
+
+        <!-- ── FEEDBACK TAB ─────────────────────────────────────── -->
+        <section id="feedback" class="tab-panel">
+            <div class="panel-header">
+                <div class="panel-header-left">
+                    <div class="panel-eyebrow"><i class="ti ti-star"></i> User Feedback</div>
+                    <h1 class="panel-title">Rate a <span>Song</span></h1>
+                    <p class="panel-subtitle">Your ratings teach the AI your taste — every star matters!</p>
+                </div>
+            </div>
+
+            <div class="feedback-layout">
+                <div class="controls-card feedback-card">
+                    <div class="controls-card-title"><i class="ti ti-send"></i> Submit Rating</div>
+                    <div class="field">
+                        <label><i class="ti ti-user-circle"></i> User ID</label>
+                        <input type="number" id="feedbackUserId" min="1" max="25" value="1">
+                    </div>
+                    <div class="field" style="margin-top:16px">
+                        <label><i class="ti ti-music"></i> Song ID <span class="field-hint">1–55</span></label>
+                        <input type="number" id="feedbackSongId" min="1" max="55" value="1" oninput="previewSong(this.value)">
+                    </div>
+
+                    <!-- Song preview card -->
+                    <div class="song-preview-mini" id="songPreview"></div>
+
+                    <div class="field" style="margin-top:16px">
+                        <label><i class="ti ti-star"></i> Your Rating</label>
+                        <div class="star-rating-wrap">
+                            <div class="star-rating" id="starRating">
+                                <span class="star" data-val="1">★</span>
+                                <span class="star" data-val="2">★</span>
+                                <span class="star" data-val="3">★</span>
+                                <span class="star" data-val="4">★</span>
+                                <span class="star" data-val="5">★</span>
+                            </div>
+                            <span class="rating-label" id="ratingLabel">5 stars — Love it! 😍</span>
+                        </div>
+                        <input type="hidden" id="feedbackRating" value="5">
+                    </div>
+                    <div class="action-row" style="margin-top:24px">
+                        <button class="btn-primary" onclick="recordFeedback()">
+                            <i class="ti ti-send"></i> Submit Rating
+                        </button>
+                        <button class="btn-ghost" onclick="clearFeedback()">
+                            <i class="ti ti-x"></i> Reset
+                        </button>
+                    </div>
+                    <div id="feedbackResult" style="margin-top:16px"></div>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-card-icon">🎓</div>
+                    <h3>How the ML learns from you</h3>
+                    <ul class="info-list">
+                        <li>
+                            <span class="info-bullet">01</span>
+                            <div>Your star ratings feed into the <strong>collaborative filtering</strong> matrix</div>
+                        </li>
+                        <li>
+                            <span class="info-bullet">02</span>
+                            <div>High ratings boost songs with <strong>similar audio features</strong> in your future recommendations</div>
+                        </li>
+                        <li>
+                            <span class="info-bullet">03</span>
+                            <div>The model <strong>auto-retrains</strong> every 10 new ratings to stay fresh</div>
+                        </li>
+                        <li>
+                            <span class="info-bullet">04</span>
+                            <div>Low ratings help <strong>filter out</strong> genres and moods you dislike</div>
+                        </li>
+                    </ul>
+                    <div class="info-callout">
+                        <i class="ti ti-bulb"></i>
+                        <span>Try rating songs 1–55 across different genres to see the hybrid model adapt!</span>
                     </div>
                 </div>
             </div>
-            <div id="feedbackResult"></div>
-        </div>
+        </section>
 
-        <!-- Stats Tab -->
-        <div id="stats" class="tab-content">
-            <div style="text-align: center; margin: 20px 0;">
-                <button class="btn-primary" onclick="getStats()" style="width: 200px;">Load Statistics</button>
+        <!-- ── ANALYTICS TAB ────────────────────────────────────── -->
+        <section id="stats" class="tab-panel">
+            <div class="panel-header">
+                <div class="panel-header-left">
+                    <div class="panel-eyebrow"><i class="ti ti-chart-bar"></i> System Metrics</div>
+                    <h1 class="panel-title">Live <span>Analytics</span></h1>
+                    <p class="panel-subtitle">Real-time statistics and model controls</p>
+                </div>
+                <div class="panel-header-actions">
+                    <button class="btn-primary" onclick="getStats()">
+                        <i class="ti ti-refresh"></i> Refresh
+                    </button>
+                    <button class="btn-success" onclick="triggerRetrain()">
+                        <i class="ti ti-player-play"></i> Retrain Model
+                    </button>
+                </div>
             </div>
-            <div id="statsResult"></div>
-        </div>
-    </div>
+            <div id="statsResult">
+                <div class="analytics-prompt">
+                    <div class="analytics-prompt-icon">📊</div>
+                    <p>Click <strong>Refresh</strong> to load live system statistics</p>
+                </div>
+            </div>
+        </section>
 
-    <script src="/static/js/app.js" defer></script>
+    </main>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="/static/js/app.js" defer></script>
 </body>
 </html>

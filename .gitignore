@@ -116,12 +116,17 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Models and data
+# Generated runtime files — do not commit
 models/trained_model.pkl
+models/model_meta.txt
 features/audio_features.pkl
+features/features_meta.txt
+logs/app.log
 *.db
 *.sqlite
-*.csv
+
+# Keep CSV data files in version control
+# *.csv
 
 # IDE
 .idea/

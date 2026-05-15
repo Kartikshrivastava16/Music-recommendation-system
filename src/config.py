@@ -25,6 +25,13 @@ MAX_RATING = int(os.getenv("MAX_RATING", 5))
 COLLABORATIVE_WEIGHT = float(os.getenv("COLLABORATIVE_WEIGHT", 0.6))
 CONTENT_WEIGHT = float(os.getenv("CONTENT_WEIGHT", 0.4))
 
+# Diversity & Serendipity
+DIVERSITY_LAMBDA = float(os.getenv("DIVERSITY_LAMBDA", 0.3))
+SERENDIPITY_BOOST = float(os.getenv("SERENDIPITY_BOOST", 0.15))
+
+# Auto-Retraining
+RETRAIN_THRESHOLD = int(os.getenv("RETRAIN_THRESHOLD", 10))
+
 # API Configuration
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", 5000))

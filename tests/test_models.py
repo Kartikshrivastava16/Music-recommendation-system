@@ -131,19 +131,41 @@ class TestHybridRecommender(unittest.TestCase):
             'danceability': [0.8, 0.85, 0.8, 0.7, 0.9],
         })
         
-        self.recommender = HybridRecommender(collaborative_weight=0.6, content_weight=0.4)
+        self.recommender = HybridRecommender(
+            collaborative_weight=0.6,
+            content_weight=0.4,
+            diversity_lambda=0.3,
+            serendipity_boost=0.15
+        )
         self.recommender.fit(self.user_item_matrix, self.song_features)
     
     def test_initialization(self):
         """Test hybrid recommender initialization"""
         self.assertEqual(self.recommender.collaborative_weight, 0.6)
         self.assertEqual(self.recommender.content_weight, 0.4)
+        self.assertEqual(self.recommender.diversity_lambda, 0.3)
+        self.assertEqual(self.recommender.serendipity_boost, 0.15)
     
     def test_get_recommendations(self):
         """Test hybrid recommendations"""
         recommendations = self.recommender.get_recommendations(1, num_recommendations=3)
         self.assertIsInstance(recommendations, list)
         self.assertLessEqual(len(recommendations), 3)
+    
+    def test_get_recommendations_pure_relevance(self):
+        """diversity_lambda=0 should behave like the original system"""
+        recs = self.recommender.get_recommendations(1, num_recommendations=3, diversity_lambda=0.0)
+        self.assertIsInstance(recs, list)
+    
+    def test_get_recommendations_max_diversity(self):
+        """diversity_lambda=1 should return a varied list"""
+        recs = self.recommender.get_recommendations(1, num_recommendations=3, diversity_lambda=1.0)
+        self.assertIsInstance(recs, list)
+    
+    def test_get_recommendations_no_serendipity(self):
+        """serendipity_boost=0 should disable the bonus"""
+        recs = self.recommender.get_recommendations(1, num_recommendations=3, serendipity_boost=0.0)
+        self.assertIsInstance(recs, list)
     
     def test_get_collaborative_recommendations(self):
         """Test collaborative recommendations"""

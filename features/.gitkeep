@@ -1,0 +1,3 @@
+# This folder holds cached audio feature pickle files (audio_features.pkl, features_meta.txt).
+# Generated automatically at runtime by features/feature_cache.py.
+# Do not commit .pkl files to version control.
