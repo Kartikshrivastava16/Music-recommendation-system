@@ -59,7 +59,24 @@ def initialize_models():
         logger.info("Initializing models...")
 
         # ── Load raw data ──────────────────────────────────────────────
-        data_loader = DataLoader(data_dir="data")
+        # Resolve `data/` directory (support running from `src/` or repo root)
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        candidates = [Path.cwd(), Path(__file__).resolve().parent, Path(__file__).resolve().parent.parent, repo_root]
+        data_dir = None
+        for base in candidates:
+            candidate = (base / "data")
+            if candidate.exists():
+                data_dir = candidate.resolve()
+                logger.info(f"Using data directory: {data_dir}")
+                break
+        if data_dir is None:
+            # If repo-root `data/` exists prefer it; otherwise fall back to cwd/data
+            if (repo_root / "data").exists():
+                data_dir = (repo_root / "data").resolve()
+            else:
+                data_dir = Path("data")
+
+        data_loader = DataLoader(data_dir=str(data_dir))
         songs, users, history = data_loader.load_all()
         logger.info(f"Loaded {len(songs)} songs, {len(users)} users, {len(history)} history records")
 
@@ -109,7 +126,7 @@ def initialize_models():
                 logger.error(f"Auto-retrain callback error: {err}")
 
         feedback_manager = FeedbackManager(
-            history_file="data/listening_history.csv",
+            history_file=str((data_dir / "listening_history.csv")),
             retrain_callback=_retrain_callback,
             retrain_threshold=RETRAIN_THRESHOLD,
         )
@@ -126,17 +143,17 @@ def initialize_models():
 
 def inject_models_into_routes():
     """Push initialized model/manager references into every route blueprint."""
-    import routes.recommendations as rec_module
+    from .routes import recommendations as rec_module
     rec_module.recommender      = recommender
     rec_module.feedback_manager = feedback_manager
 
-    import routes.feedback as fb_module
+    from .routes import feedback as fb_module
     fb_module.feedback_manager  = feedback_manager
 
-    import routes.similar as sim_module
+    from .routes import similar as sim_module
     sim_module.recommender      = recommender
 
-    import routes.stats as stats_module
+    from .routes import stats as stats_module
     stats_module.recommender      = recommender
     stats_module.feedback_manager = feedback_manager
 
@@ -181,10 +198,10 @@ def internal_error(error):
 
 
 # ── Register blueprints ────────────────────────────────────────────────────
-from routes.recommendations import recommendations_bp
-from routes.feedback        import feedback_bp
-from routes.similar         import similar_bp
-from routes.stats           import stats_bp
+from .routes.recommendations import recommendations_bp
+from .routes.feedback        import feedback_bp
+from .routes.similar         import similar_bp
+from .routes.stats           import stats_bp
 
 app.register_blueprint(recommendations_bp)
 app.register_blueprint(feedback_bp)
